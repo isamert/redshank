@@ -1,4 +1,4 @@
-;;; redshank.el --- Common Lisp Editing Extensions
+;;; redshank.el --- Common Lisp Editing Extensions  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2006--2012  Michael Weber
 ;; Version: 1
@@ -36,7 +36,7 @@
 ;;
 ;;   (require 'redshank-loader
 ;;            "/path/redshank/redshank-loader")
-;;            
+;;
 ;;   (eval-after-load "redshank-loader"
 ;;      `(redshank-setup '(lisp-mode-hook
 ;;                         slime-repl-mode-hook) t))
@@ -83,7 +83,6 @@
 ;;; Code:
 (defconst redshank-version 1)
 
-(eval-and-compile (require 'cl))
 (require 'paredit)
 (require 'skeleton)
 (require 'easymenu)
@@ -283,16 +282,14 @@ Emacs Lisp package."))
 
 \\{redshank-mode-map}"
   :lighter " Redshank"
-  :keymap `(,(read-kbd-macro redshank-prefix-key) . redshank-mode-map)
-  (when redshank-mode
-    (easy-menu-add menu-bar-redshank redshank-mode-map)))
+  :keymap `(,(read-kbd-macro redshank-prefix-key) . redshank-mode-map))
 
 ;;;###autoload
 (defun turn-on-redshank-mode ()
   "Turn on Redshank mode.  Please see function `redshank-mode'.
 
 This function is designed to be added to hooks, for example:
-  \(add-hook 'lisp-mode-hook 'turn-on-redshank-mode)"
+  \(add-hook \\='lisp-mode-hook \\='turn-on-redshank-mode)"
   (interactive)
   (redshank-mode +1))
 
@@ -383,11 +380,11 @@ LABELS or FLET.)"
   (interactive)
   (let ((here.point (point)))
     (or (ignore-errors
-          (block nil
+          (cl-block nil
             (backward-up-list)
             (while (not (looking-at "(let\\*?\\S_"))
               (when (looking-at "(\\(def\\s_*\\|labels\\|flet\\)\\S_")
-                (return nil))
+                (cl-return nil))
               (backward-up-list))
             (point)))
         (prog1 nil
@@ -404,7 +401,7 @@ LABELS or FLET.)"
 (defun redshank-canonical-package-name (package-name)
   (and package-name (not (string= "" package-name))
        ;; very naive
-       (lexical-let ((package-name (redshank--trim-whitespace package-name)))
+       (let ((package-name (redshank--trim-whitespace package-name)))
          (if (or (string-match "^#?:\\(.*\\)$" package-name)
                  (string-match "^\"\\(.*\\)\"$" package-name))
              (match-string-no-properties 1 package-name)
@@ -437,30 +434,30 @@ LABELS or FLET.)"
 (defun redshank--sexp-column-widths ()
   "Return list of column widths for s-expression at point."
   (down-list)
-  (loop do (while (forward-comment 1))
-        until (or (looking-at ")") (eobp))
-        collect (- (- (point)
-                      (progn
-                        (redshank--end-of-sexp-column)
-                        (point))))
-        finally (up-list)))
+  (cl-loop do (while (forward-comment 1))
+           until (or (looking-at ")") (eobp))
+           collect (- (- (point)
+                         (progn
+                           (redshank--end-of-sexp-column)
+                           (point))))
+           finally (up-list)))
 
 (defun redshank--max* (&rest args)
-  (reduce #'max args :key (lambda (arg) (or arg 0))))
+  (cl-reduce #'max args :key (lambda (arg) (or arg 0))))
 
 (defun redshank-align-sexp-columns (column-widths)
   "Align expressions in S-expression at point.
 COLUMN-WIDTHS is expected to be a list."
   (down-list)
-  (loop initially (while (forward-comment +1))
-        for width in column-widths
-        until (looking-at ")")
-        do (let ((beg (point)))
-             (redshank--end-of-sexp-column)
-             (let ((used (- (point) beg)))
-               (just-one-space (if (looking-at "[[:space:]]*)") 0
-                                 (1+ (- width used))))))
-        finally (up-list)))
+  (cl-loop initially (while (forward-comment +1))
+           for width in column-widths
+           until (looking-at ")")
+           do (let ((beg (point)))
+                (redshank--end-of-sexp-column)
+                (let ((used (- (point) beg)))
+                  (just-one-space (if (looking-at "[[:space:]]*)") 0
+                                    (1+ (- width used))))))
+           finally (up-list)))
 
 (defun redshank--slot-form-at-point-p ()
   (ignore-errors
@@ -475,7 +472,7 @@ COLUMN-WIDTHS is expected to be a list."
        (boundp 'mark-active)
        mark-active))
 
-(defun redshank-ignore-event (event)
+(defun redshank-ignore-event (_event)
   "Ignores a (mouse) event.
 This is used to override mouse bindings in a minor mode keymap,
 but does otherwise nothing."
@@ -514,17 +511,17 @@ but does otherwise nothing."
              (match-string-no-properties 2)))))))
 
 (defun redshank--assoc-match (key alist)
-  (loop for entry in alist do
-        (cond ((stringp (car entry))
-               (when (eq t (compare-strings (car entry) 0 nil
-                                            key 0 nil
-                                            case-fold-search))
-                 (return entry)))
-              ((functionp (car entry))
-               (when (funcall (car entry) key)
-                 (return entry)))
-              ((eq t (car entry))
-               (return entry)))))
+  (cl-loop for entry in alist do
+           (cond ((stringp (car entry))
+                  (when (eq t (compare-strings (car entry) 0 nil
+                                               key 0 nil
+                                               case-fold-search))
+                    (cl-return entry)))
+                 ((functionp (car entry))
+                  (when (funcall (car entry) key)
+                    (cl-return entry)))
+                 ((eq t (car entry))
+                  (cl-return entry)))))
 
 ;;; ASDF
 (defun redshank-walk-filesystem (spec enter-fn leave-fn)
@@ -548,16 +545,16 @@ but does otherwise nothing."
         :type (file-name-extension filename)))
 
 (defun redshank-asdf-make-spec/filename (filename)
-  (list* filename (when (file-name-extension filename)
-                    (list :pathname filename))))
+  (cl-list* filename (when (file-name-extension filename)
+                       (list :pathname filename))))
 
 (defun redshank-asdf-classify-component (directory filename)
   (dolist (mapping redshank-asdf-component-mapping)
-    (destructuring-bind (regex tag &optional filename-fn) mapping
+    (cl-destructuring-bind (regex tag &optional filename-fn) mapping
       (when (string-match regex (concat directory filename))
-        (return `(,tag ,@(if filename-fn
-                             (funcall filename-fn filename)
-                           (list (file-name-sans-extension filename)))))))))
+        (cl-return `(,tag ,@(if filename-fn
+                                (funcall filename-fn filename)
+                              (list (file-name-sans-extension filename)))))))))
 
 (defun redshank-asdf-insert-module-components (directory)
   "Inserts DIRECTORY as ASDF module into current buffer.
@@ -590,7 +587,7 @@ The outermost :module/:components is not provided."
             (paredit-open-parenthesis)
             ;; do descend into directory
             t)))
-   (lambda (dir file)
+   (lambda (_dir file)
      (unless (or (member file '("." ""))
                  (string-match redshank-asdf-exclusion-regexp file))
        (paredit-close-parenthesis)
@@ -709,9 +706,9 @@ involves macro-expanding code, and as such might have side effects."
                                   ,(or package (slime-pretty-package-name
                                                 (slime-current-package))))
                                 package)))
-    (flet ((princ-to-string (o)
-             (with-output-to-string
-               (princ (if (null o) "()" o)))))
+    (cl-flet ((princ-to-string (o)
+                               (with-output-to-string
+                                 (princ (if (null o) "()" o)))))
       (with-temp-buffer
         (lisp-mode)                     ; for proper indentation
         (insert "(defun " name " " (princ-to-string free-vars) "\n")
@@ -723,7 +720,7 @@ involves macro-expanding code, and as such might have side effects."
                   "Extracted function `%s' now on kill ring; \\[yank] to insert at point.") ;
                  name))
       (delete-region start end)
-      (princ (list* name free-vars) (current-buffer)))))
+      (princ (cl-list* name free-vars) (current-buffer)))))
 
 (defun redshank-enclose-form-with-lambda (arglist)
   "Enclose form with lambda expression with parameter VAR.
@@ -755,10 +752,10 @@ Example:
 (defun redshank-condify-form ()
   "Transform a Common Lisp IF form into an equivalent COND form."
   (interactive "*")
-  (flet ((redshank--frob-cond-branch ()
-            (paredit-wrap-sexp +2)
-            (forward-sexp)
-            (redshank-maybe-splice-progn)))
+  (cl-flet ((redshank--frob-cond-branch ()
+                                        (paredit-wrap-sexp +2)
+                                        (forward-sexp)
+                                        (redshank-maybe-splice-progn)))
     (save-excursion
       (unless (redshank--looking-at-or-inside "if")
         (error "Cowardly refusing to mutilate other forms than IF"))
@@ -791,12 +788,12 @@ With optional numeric argument, wrap N top-level forms."
   "Rewrite the negated predicate of a WHEN or UNLESS form at point."
   (interactive "*")
   (save-excursion
-    (flet ((redshank--frob-form (new-head)
-             (paredit-forward-kill-word)
-             (insert new-head)
-             (paredit-forward-kill-word)
-             (paredit-splice-sexp-killing-backward)
-             (just-one-space)))
+    (cl-flet ((redshank--frob-form (new-head)
+                                   (paredit-forward-kill-word)
+                                   (insert new-head)
+                                   (paredit-forward-kill-word)
+                                   (paredit-splice-sexp-killing-backward)
+                                   (just-one-space)))
       ;; Okay, I am cheating here...
       (cond ((redshank--looking-at-or-inside "when\\s-+(not")
              (redshank--frob-form "unless"))
@@ -822,17 +819,17 @@ is formatted as:
     (narrow-to-region beg end)
     (goto-char beg)
     (let* ((columns
-            (loop do (while (forward-comment +1))
-                  until (or (looking-at ")") (eobp))
-                  collect (redshank--sexp-column-widths)))
+            (cl-loop do (while (forward-comment +1))
+                     until (or (looking-at ")") (eobp))
+                     collect (redshank--sexp-column-widths)))
            (max-column-widths
-            (loop for cols = columns then (mapcar #'cdr cols)
-                  while (some #'consp cols)
-                  collect (apply #'redshank--max* (mapcar #'car cols)))))
+            (cl-loop for cols = columns then (mapcar #'cdr cols)
+                     while (cl-some #'consp cols)
+                     collect (apply #'redshank--max* (mapcar #'car cols)))))
       (goto-char beg)
-      (loop do (while (forward-comment +1))
-            until (or (looking-at ")") (eobp))
-            do (redshank-align-sexp-columns max-column-widths)))))
+      (cl-loop do (while (forward-comment +1))
+               until (or (looking-at ")") (eobp))
+               do (redshank-align-sexp-columns max-column-widths)))))
 
 (defun redshank-align-slot-specs-in-form ()
   "Align slots of a Common Lisp DEFCLASS-like form at point.
@@ -1005,7 +1002,7 @@ REDSHANK-THING-AT-POINT."
          (generator (redshank--assoc-match redshank-thing-at-point
                                            (cdr mode-table))))
     (if generator
-        (if (interactive-p)
+        (if (called-interactively-p 'interactive)
             (call-interactively (cdr generator))
           (funcall (cdr generator)))
       (message "Don't know a generator for `%s'." redshank-thing-at-point))))
@@ -1121,12 +1118,12 @@ REDSHANK-THING-AT-POINT."
   '(paredit-close-parenthesis) "\n" \n
   _)
 
-(defun redshank-defclass-skeleton ()  
+(defun redshank-defclass-skeleton ()
   "Inserts a Common Lisp DEFCLASS skeleton."
   (interactive "*")
   (redshank-form-with-slots-skeleton "defclass"))
 
-(defun redshank-define-condition-skeleton ()  
+(defun redshank-define-condition-skeleton ()
   "Inserts a Common Lisp DEFINE-CONDITION skeleton."
   (interactive "*")
   (redshank-form-with-slots-skeleton "define-condition"))
@@ -1146,16 +1143,14 @@ REDSHANK-THING-AT-POINT."
    '(paredit-close-parenthesis) \n) & '(join-line)
    _)
 
-(defadvice redshank-form-with-slots-skeleton
-  (after redshank-format-form-with-slots activate)
+(define-advice redshank-form-with-slots-skeleton (:after (&rest _) redshank-format-form-with-slots)
   "Align DEFCLASS-like slots."
   (when redshank-reformat-form-containing-slots
     (save-excursion
       (backward-sexp)
       (redshank-align-slot-specs-in-form))))
 
-(defadvice redshank-slot-spec-skeleton
-  (after redshank-reformat-defclass activate)
+(define-advice redshank-slot-spec-skeleton (:after (&rest _) redshank-reformat-defclass)
   "Align DEFCLASS slots."
   (when redshank-reformat-form-containing-slots
     (save-excursion
@@ -1176,7 +1171,7 @@ and activates minor mode `redshank-mode' by default.
   "Turn on ASDF mode.  Please see function `asdf-mode'.
 
 This function is designed to be added to hooks, for example:
-  \(add-hook 'lisp-mode-hook 'turn-on-asdf-mode)"
+  \(add-hook \\='lisp-mode-hook \\='turn-on-asdf-mode)"
   (interactive)
   (asdf-mode))
 
